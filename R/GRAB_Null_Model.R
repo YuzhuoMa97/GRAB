@@ -12,6 +12,8 @@
 #' @param GenoFileIndex additional index files corresponding to the \code{GenoFile}. If \code{NULL} (default), the same prefix as GenoFile is used. Check \code{\link{GRAB.ReadGeno}} for more details.
 #' @param SparseGRMFile a character of sparseGRM file. An example is \code{system.file("SparseGRM","SparseGRM.txt",package="GRAB")}
 #' @param control a list of parameters for controlling the model fitting process. For more details, please check \code{Details} section. 
+#' @param sparseGRM_SPAmixPlus (MYZ) a character of sparseGRM file. An example is \code{system.file("SparseGRM","SparseGRM.txt",package="GRAB")} 
+#' @param sparseGRMFile_SPAmixPlus (MYZ) a character of sparseGRM file. An example is \code{system.file("SparseGRM","SparseGRM.txt",package="GRAB")} 
 #' @param ... other arguments passed to or from other methods. 
 #' @return an R object with a class of "XXXXX_NULL_Model" in which XXXXX is the 'method' used in analysis. The following elements are required for all methods.
 #' \itemize{
@@ -37,6 +39,9 @@
 #'   \item \code{SPACox}: Support \code{traitType} = \code{"time-to-event"} or \code{"Residual"}. Check \code{\link{GRAB.SPACox}} for more details.
 #'   \item \code{SPAmix}: Support \code{traitType} = \code{"time-to-event"} or \code{"Residual"}. Check \code{\link{GRAB.SPAmix}} for more details.
 #'   \item \code{SPAGRM}: Support \code{traitType} = \code{"time-to-event"} or \code{"Residual"}. Check \code{\link{GRAB.SPAGRM}} for more details.
+#'   \item \code{SPAyuzhuoma}: Support \code{traitType} = \code{"time-to-event"} or \code{"Residual"}. Check \code{\link{GRAB.SPAyuzhuoma}} for more details.
+#'   \item \code{SPAmixPlusV4}: Support \code{traitType} = \code{"time-to-event"} or \code{"Residual"}. Check \code{\link{GRAB.SPAmixPlusV4}} for more details.
+#'   \item \code{SPAGxEmixPlus}: Support \code{traitType} = \code{"time-to-event"} or \code{"Residual"}. Check \code{\link{GRAB.SPAGxEmixPlus}} for more details.
 #' }
 #' }
 #' 
@@ -114,7 +119,10 @@
 #' 
 #' # For SPACox method, check ?GRAB.SPACox.
 #' # For SPAmix method, check ?GRAB.SPAmix.
+#' # For SPAmixPlusV4 method, check ?GRAB.SPAmixPlusV4.
+#' # For SPAGxEmixPlus method, check ?GRAB.SPAGxEmixPlus.
 #' # For SPAGRM method, check ?GRAB.SPAGRM
+#' # For SPAyuzhuoma method, check ?GRAB.SPAyuzhuoma
 #' 
 #' @export
 #' @import survival, data.table
@@ -128,6 +136,10 @@ GRAB.NullModel = function(formula,
                           GenoFileIndex = NULL,
                           SparseGRMFile = NULL,
                           control = NULL,
+                          
+                          sparseGRM_SPAmixPlus = NULL,     # update by Yuzhuo Ma on 2025-03-28
+                          sparseGRMFile_SPAmixPlus = NULL, # update by Yuzhuo Ma on 2025-03-28
+                          EnviColName = NULL,              # update by Yuzhuo Ma on 2025-04-17
                           ...)
 {
   if(missing(subjData))
@@ -146,19 +158,51 @@ GRAB.NullModel = function(formula,
   
   LeftInFormula = deparse(formula[[2]])
   LeftIncludesAdd = grepl("\\+", LeftInFormula)
+
+  # if(LeftIncludesAdd){
+  #   if(method != "SPAmix" | traitType != "Residual")
+  #     stop("Only 'SPAmix' method with traitType of 'Residual' supports multiple responses variables in 'formula'.")
+  #   
+  #   nInLeft = length(strsplit(LeftInFormula, "\\+")[[1]])
+  #   cat("SPAmix method supports multiple response variables of model residuals.\n")
+  #   RightInFormula = deparse(formula[[3]])
+  #   NewLeftInFormla = paste0("paste(", gsub("\\+", ",", LeftInFormula), ")")
+  #   NewRightInFormula = paste0(RightInFormula, collapse = " ")   # c("cov1 + cov2 +", "cov3") -> "cov1 + cov2 + cov3"
+  #   # mf$formula = as.formula(paste(NewLeftInFormla, "~", RightInFormula))
+  #   mf$formula = as.formula(paste(NewLeftInFormla, "~", NewRightInFormula))
+  # }
+  
+  # added by Yuzhuo Ma on 2025-03-26
   
   if(LeftIncludesAdd){
-    if(method != "SPAmix" | traitType != "Residual")
-      stop("Only 'SPAmix' method with traitType of 'Residual' supports multiple responses variables in 'formula'.")
+    if(!(method %in% c("SPAmix", "SPAmixPlusV4")) || traitType != "Residual")
+      stop("Only 'SPAmix' or 'SPAmixPlusV4' method with traitType of 'Residual' supports multiple response variables in 'formula'.")
     
     nInLeft = length(strsplit(LeftInFormula, "\\+")[[1]])
-    cat("SPAmix method supports multiple response variables of model residuals.\n")
+    cat("SPAmix/SPAmixPlusV4 method supports multiple response variables of model residuals.\n")
     RightInFormula = deparse(formula[[3]])
     NewLeftInFormla = paste0("paste(", gsub("\\+", ",", LeftInFormula), ")")
     NewRightInFormula = paste0(RightInFormula, collapse = " ")   # c("cov1 + cov2 +", "cov3") -> "cov1 + cov2 + cov3"
     # mf$formula = as.formula(paste(NewLeftInFormla, "~", RightInFormula))
     mf$formula = as.formula(paste(NewLeftInFormla, "~", NewRightInFormula))
   }
+  
+  
+  # added by Yuzhuo Ma on 2025-04-14
+  
+  if(LeftIncludesAdd){
+    if(!(method %in% c("SPAGxEmixPlus")) || traitType != "Residual")
+      stop("'SPAGxEmixPlus' method with traitType of 'Residual' supports multiple response variables in 'formula'.")
+    
+    nInLeft = length(strsplit(LeftInFormula, "\\+")[[1]])
+    cat("SPAGxEmixPlus method supports multiple response variables of model residuals.\n")
+    RightInFormula = deparse(formula[[3]])
+    NewLeftInFormla = paste0("paste(", gsub("\\+", ",", LeftInFormula), ")")
+    NewRightInFormula = paste0(RightInFormula, collapse = " ")   # c("cov1 + cov2 +", "cov3") -> "cov1 + cov2 + cov3"
+    # mf$formula = as.formula(paste(NewLeftInFormla, "~", RightInFormula))
+    mf$formula = as.formula(paste(NewLeftInFormla, "~", NewRightInFormula))
+  }
+
   ##
   
   m <- match(x = c("formula", "data", "subset", "subjData"), 
@@ -173,9 +217,13 @@ GRAB.NullModel = function(formula,
   
   response = model.response(mf)
   designMat = model.matrix(object = mt, data = mf)
+  
+  # 添加列名检查
+  cat("designMat 的列名:", colnames(designMat), "\n")
+  
   subjData = model.extract(mf, "subjData")
   
-  ### The below is to support multiple response variables for SPAmix with residuals as input
+  ### The below is to support multiple response variables for SPAmix/SPAmixPlusV4/SPAGxEmixPlus with residuals as input
   if(traitType == "Residual"){
     if(LeftIncludesAdd){
       noValueInAnyPheno = paste(rep(NA, nInLeft), collapse = " ")
@@ -222,6 +270,24 @@ GRAB.NullModel = function(formula,
     # Check 'control.R'
     control = checkControl.NullModel(control, method, traitType, optionGRM)
     textToParse = paste0("objNull = fitNullModel.", method, "(response, designMat, subjData, control, optionGRM, genoType, markerInfo)")
+  }else if(method == "SPAmixPlusV4"){ # update by Yuzhuo Ma on 2025-03-28
+    # Check 'control.R'
+    control = checkControl.NullModel(control, method, traitType)
+    textToParse = paste0("objNull = fitNullModel.", method, "(response, designMat, subjData, control, sparseGRM_SPAmixPlus, sparseGRMFile_SPAmixPlus)")
+  }else if(method == "SPAGxEmixPlus"){ # update by Yuzhuo Ma on 2025-04-14
+    # Check 'control.R'
+    control = checkControl.NullModel(control, method, traitType)
+    # textToParse = paste0("objNull = fitNullModel.", method, "(response, designMat, subjData, control, sparseGRM_SPAmixPlus, sparseGRMFile_SPAmixPlus, EnviColName)")
+    # 显式传递 EnviColName 到 fitNullModel.SPAGxEmixPlus
+    textToParse = paste0("objNull = fitNullModel.SPAGxEmixPlus(
+    response = response,
+    designMat = designMat,
+    subjData = subjData,
+    control = control,
+    sparseGRM_SPAmixPlus = sparseGRM_SPAmixPlus,
+    sparseGRMFile_SPAmixPlus = sparseGRMFile_SPAmixPlus,
+    EnviColName = '", EnviColName, "'  
+  )")
   }else{
     # Check 'control.R'
     control = checkControl.NullModel(control, method, traitType)
